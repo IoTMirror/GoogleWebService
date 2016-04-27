@@ -89,9 +89,20 @@ def signout(user_id):
     atdb.deleteUserTokens(user_id)
   return ""
 
+#revokes user access tokens from using app and deletes them from db
+@app.route('/users/<user_id>/access_tokens', methods=['DELETE'])
+def delete_user_access_tokens(user_id):
+  return signout(user_id)
+
+#deletes user oauth2 states from db
+@app.route('/users/<user_id>/oauth2_states', methods=['DELETE'])
+def delete_user_oauth2_states(user_id):
+  o2sdb.deleteUserStates(user_id)
+  return ""
+
 #returns info about user specified by user_id
 @app.route('/users/<user_id>', methods=['GET'])
-def test(user_id):
+def user_info(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
     return ("", 404)
