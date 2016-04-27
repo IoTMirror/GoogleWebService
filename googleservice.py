@@ -2,6 +2,9 @@ import flask
 import json
 import os
 import uuid
+import random
+import math
+import dateutil.parser
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.client import TokenRevokeError
 from oauth2client.client import FlowExchangeError
@@ -14,6 +17,7 @@ from iotmirror_commons.oauth2_tokens import OAuth2StatesDatabase
 from iotmirror_commons.oauth2_tokens import AccessTokensDatabase
 from iotmirror_commons.json_commons import ObjectJSONEncoder
 from google_commons import GoogleCredentialsProvider
+from google_utils import TaskProvider
 
 app = flask.Flask(__name__)
 
@@ -118,6 +122,35 @@ def user_info(user_id):
                       cls = ObjectJSONEncoder
                      )
   except HttpAccessTokenRefreshError:  
+    return ("",401)
+
+#returns tasks for user specified by user_id
+@app.route('/users/<user_id>/tasks', methods=['GET'])
+def user_tasks(user_id):
+  max_tasks = 10
+  tokens = atdb.getUserTokens(user_id)
+  if tokens is None:
+    return ("",404)
+  credentials = credentials_provider.getCredentials(tokens["access_token"],tokens["refresh_token"])
+  http = credentials.authorize(httplib2.Http())
+  service = discovery.build('tasks', 'v1', http = http)
+  task_provider = TaskProvider(service)
+  try:
+    tasks = task_provider.get_all_tasks(tasklist_info = True)
+    tasks_separated = {
+        "timed" : [x for x in tasks if x.get("due",None) is not None],
+        "rest" : [x for x in tasks if x.get("due",None) is None]
+      }
+    tasks_separated["timed"].sort(key=lambda x: dateutil.parser.parse(x["due"]))
+    random.shuffle(tasks_separated["rest"])
+    timed_count = len(tasks_separated["timed"])
+    rest_count = len(tasks_separated["rest"])
+    timed_count_new = int(math.floor(min(max(max_tasks/2,max_tasks - rest_count),timed_count)))
+    rest_count_new = int(math.floor(min(max_tasks-timed_count_new,rest_count)))
+    tasks_separated["timed"] = (tasks_separated["timed"])[:timed_count_new]
+    tasks_separated["rest"] = (tasks_separated["rest"])[:rest_count_new]
+    return json.dumps(tasks_separated, cls = ObjectJSONEncoder)
+  except HttpAccessTokenRefreshError:
     return ("",401)
 
 if __name__ == '__main__':
