@@ -66,3 +66,45 @@ class TaskProvider(object):
 
   def add_tasklist_info_to_task(self, task, tasklist, include_id = False):
     task["tasklist_info"] = self.extract_tasklist(tasklist, include_id)
+
+class EmailMessageProvider(object):
+  def __init__(self,service):
+    self.service = service
+
+  def get_inbox_messages_list(self, max_messages = None):
+    messages = []
+    pagetoken = None
+    collected_messages = 0
+    while max_messages is None or collected_messages < max_messages:
+      messages_list_info = None
+      if pagetoken is None:
+        messages_list_info = self.service.users().messages().list(
+            userId = "me", labelIds = ["INBOX","UNREAD"], maxResults = max_messages
+          ).execute()
+      else:
+        messages_list_info = self.service.users().messages().list(
+            userId = "me", labelIds = ["INBOX","UNREAD"], pageToken = pagetoken,
+            maxResults = max_messages
+          ).execute()
+      for message_minimal in messages_list_info.get("messages",[]):
+        message_metadata = self.get_message_metadata(message_minimal["id"])
+        messages.append(self.extract_message_info(message_metadata))
+        collected_messages += 1
+        if max_messages is not None and collected_messages >= max_messages:
+          break
+      pagetoken = messages_list_info.get("nextPageToken",None)
+      if pagetoken is None:
+        break
+    return messages
+
+  def get_message_metadata(self,message_id):
+    return self.service.users().messages().get(
+        userId = "me", id = message_id, format = "metadata",
+        metadataHeaders = ["From", "Subject", "Date", "To"]
+      ).execute()
+
+  def extract_message_info(self, message):
+    new_message = {}
+    for header in message["payload"]["headers"]:
+      new_message[header["name"].lower()] = header["value"]
+    return new_message

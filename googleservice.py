@@ -10,6 +10,7 @@ from oauth2client.client import TokenRevokeError
 from oauth2client.client import FlowExchangeError
 from oauth2client.client import HttpAccessTokenRefreshError
 from apiclient import discovery
+from apiclient.errors import HttpError
 import httplib2
 import psycopg2
 import psycopg2.extras
@@ -18,6 +19,7 @@ from iotmirror_commons.oauth2_tokens import AccessTokensDatabase
 from iotmirror_commons.json_commons import ObjectJSONEncoder
 from google_commons import GoogleCredentialsProvider
 from google_utils import TaskProvider
+from google_utils import EmailMessageProvider
 
 app = flask.Flask(__name__)
 
@@ -123,6 +125,10 @@ def user_info(user_id):
                      )
   except HttpAccessTokenRefreshError:  
     return ("",401)
+  except HttpError as error:
+    if error.resp.status == 403:
+      return ("",429)
+    raise
 
 #returns tasks for user specified by user_id
 @app.route('/users/<user_id>/tasks', methods=['GET'])
@@ -152,6 +158,30 @@ def user_tasks(user_id):
     return json.dumps(tasks_separated, cls = ObjectJSONEncoder)
   except HttpAccessTokenRefreshError:
     return ("",401)
+  except HttpError as error:
+    if error.resp.status == 403:
+      return ("",429)
+    raise
+
+@app.route('/users/<user_id>/emails/inbox', methods=["GET"])
+def user_email_inbox(user_id):
+  max_messages = 10
+  tokens = atdb.getUserTokens(user_id)
+  if tokens is None:
+    return ("",404)
+  credentials = credentials_provider.getCredentials(tokens["access_token"],tokens["refresh_token"])
+  http = credentials.authorize(httplib2.Http())
+  service = discovery.build('gmail', 'v1', http = http)
+  em_provider = EmailMessageProvider(service)
+  try:
+    messages = em_provider.get_inbox_messages_list(max_messages)
+    return json.dumps(messages, cls = ObjectJSONEncoder)
+  except HttpAccessTokenRefreshError:
+    return ("",401)
+  except HttpError as error:
+    if error.resp.status == 403:
+      return ("",429)
+    raise
 
 if __name__ == '__main__':
   port = int(os.environ.get('PORT', 5000))
