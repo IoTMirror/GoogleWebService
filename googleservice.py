@@ -112,11 +112,14 @@ def user_info(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
     return ("", 404)
+  old_access_token = tokens["access_token"]
   credentials = credentials_provider.getCredentials(tokens["access_token"],tokens["refresh_token"])
   http = credentials.authorize(httplib2.Http())
   service = discovery.build('oauth2', 'v2', http = http)
   try:
     result = service.userinfo().get().execute()
+    if old_access_token != credentials.access_token:
+      atdb.updateUserAccessToken(user_id,credentials.access_token)
     return json.dumps({"name" : result["name"],
                        "id" : result["id"],
                        "email" : result["email"]
@@ -137,12 +140,15 @@ def user_tasks(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
     return ("",404)
+  old_access_token = tokens["access_token"]
   credentials = credentials_provider.getCredentials(tokens["access_token"],tokens["refresh_token"])
   http = credentials.authorize(httplib2.Http())
   service = discovery.build('tasks', 'v1', http = http)
   task_provider = TaskProvider(service)
   try:
     tasks = task_provider.get_all_tasks(tasklist_info = True)
+    if old_access_token != credentials.access_token:
+      atdb.updateUserAccessToken(user_id,credentials.access_token)
     tasks_separated = {
         "timed" : [x for x in tasks if x.get("due",None) is not None],
         "rest" : [x for x in tasks if x.get("due",None) is None]
@@ -169,12 +175,15 @@ def user_email_inbox(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
     return ("",404)
+  old_access_token = tokens["access_token"]
   credentials = credentials_provider.getCredentials(tokens["access_token"],tokens["refresh_token"])
   http = credentials.authorize(httplib2.Http())
   service = discovery.build('gmail', 'v1', http = http)
   em_provider = EmailMessageProvider(service)
   try:
     messages = em_provider.get_inbox_messages_list(max_messages)
+    if old_access_token != credentials.access_token:
+      atdb.updateUserAccessToken(user_id,credentials.access_token)
     return json.dumps(messages, cls = ObjectJSONEncoder)
   except HttpAccessTokenRefreshError:
     return ("",401)
