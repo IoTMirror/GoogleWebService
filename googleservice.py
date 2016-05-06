@@ -20,6 +20,7 @@ from iotmirror_commons.json_commons import ObjectJSONEncoder
 from google_commons import GoogleCredentialsProvider
 from google_utils import TaskProvider
 from google_utils import EmailMessageProvider
+from google_utils import EventProvider
 
 app = flask.Flask(__name__)
 
@@ -190,6 +191,29 @@ def user_email_inbox(user_id):
   except HttpError as error:
     if error.resp.status == 403:
       return ("",429)
+    raise
+
+@app.route('/users/<user_id>/calendar/events', methods=["GET"])
+def user_calendar(user_id):
+  max_events = 10
+  tokens = atdb.getUserTokens(user_id)
+  if tokens is None:
+    return ("",404)
+  old_access_token = tokens["access_token"]
+  credentials = credentials_provider.getCredentials(tokens["access_token"], tokens["refresh_token"])
+  http = credentials.authorize(httplib2.Http())
+  service = discovery.build('calendar','v3', http = http)
+  event_provider = EventProvider(service)
+  try:
+    events = event_provider.get_all_events(max_events = max_events, calendar_info = True, calendars_with_id = False)
+    if old_access_token != credentials.access_token:
+      atdb.updateUserAccessToken(user_id, credentials.access_token)
+    return json.dumps(events,cls = ObjectJSONEncoder)
+  except HttpAccessTokenRefreshError:
+    return ("", 401)
+  except HttpError as error:
+    if error.resp.status == 403:
+      return ("", 429)
     raise
 
 if __name__ == '__main__':

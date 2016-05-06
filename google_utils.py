@@ -1,3 +1,7 @@
+from datetime import datetime
+from datetime import timezone
+import dateutil.parser
+
 class TaskProvider(object):
   def __init__(self,service):
     self.service = service
@@ -108,3 +112,92 @@ class EmailMessageProvider(object):
     for header in message["payload"]["headers"]:
       new_message[header["name"].lower()] = header["value"]
     return new_message
+
+class EventProvider(object):
+  def __init__(self, service):
+    self.service = service
+
+  def get_all_events(self, max_events = None, calendar_info = False, calendars_with_id = False):
+    events = []
+    for calendar in self.get_calendars():
+      events_from_calendar = self.get_events_from_calendar(calendar["id"],max_events)
+      calendar_data = self.extract_calendar(calendar, include_id = calendars_with_id)
+      if calendar_info is True:
+        self.add_calendar_info_to_events(events_from_calendar, calendar_data)
+      events.extend(events_from_calendar)
+    events.sort(key=lambda e: dateutil.parser.parse(e["start"]).replace(tzinfo=timezone.utc) if dateutil.parser.parse(e["start"]).tzinfo is None else dateutil.parser.parse(e["start"]))
+    events = events[:max_events]
+    return events
+
+  def get_calendars(self, include_id = True):
+    calendars = []
+    pagetoken = None
+    while True:
+      result = None
+      result = self.service.calendarList().list(pageToken = pagetoken).execute()
+      for calendar in result.get("items",[]):
+        calendars.append(self.extract_calendar(calendar, include_id))
+      pagetoken = result.get("nextPageToken",None)
+      if pagetoken is None:
+        break
+    return calendars
+
+  def extract_calendar(self, calendar, include_id = True):
+    new_calendar = {}
+    if include_id is True:
+      new_calendar["id"] = calendar["id"]
+    if "title" in calendar:
+      new_calendar["title"] = calendar["title"]
+    elif "summary" in calendar:
+      new_calendar["title"] = calendar["summary"]
+    return new_calendar
+
+  def get_events_from_calendar(self, calendar_id, max_events = None):
+    current_events = 0
+    pagetoken = None
+    events = []
+    time = datetime.now(timezone.utc).astimezone().isoformat()
+    while max_events is None or current_events<max_events:
+      result = None
+      result = self.service.events().list(maxResults = max_events, singleEvents = True, orderBy = "startTime",
+                                          timeMin = time, maxAttendees = 1, calendarId = calendar_id,
+                                          pageToken = pagetoken).execute()
+      for event in result.get("items",[]):
+        events.append(self.extract_event(event))
+        current_events += 1
+        if max_events is not None and current_events >= max_events:
+          break
+      pagetoken = result.get("nextPageToken",None)
+      if pagetoken is None:
+        break
+    return events
+
+  def extract_event(self, event):
+    new_event = {}
+    new_event["title"] = event["summary"]
+    if "date" in event["start"]:
+      new_event["start"] = event["start"]["date"]
+    elif "dateTime" in event["start"]:
+      new_event["start"] = event["start"]["dateTime"]
+    if "date" in event["end"]:
+      new_event["end"] = event["end"]["date"]
+    elif "dateTime" in event["end"]:
+      new_event["end"] = event["end"]["dateTime"]
+    if "location" in event:
+      new_event["location"] = event["location"]
+    if "displayName" in event["creator"]:
+      new_event["creator"] = event["creator"]["displayName"]
+    elif "email" in event["creator"]:
+      new_event["creator"] = event["creator"]["email"]
+    if "displayName" in event["organizer"]:
+      new_event["organizer"] = event["organizer"]["displayName"]
+    elif "email" in event["organizer"]:
+      new_event["organizer"] = event["organizer"]["email"]
+    return new_event
+
+  def add_calendar_info_to_events(self, events, calendar):
+    for event in events:
+      self.add_calendar_info_to_event(event, calendar)
+
+  def add_calendar_info_to_event(self, event, calendar):
+    event["calendar_info"] = calendar
