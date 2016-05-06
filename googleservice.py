@@ -151,6 +151,21 @@ def user_tasks(user_id):
     tasks = task_provider.get_all_tasks(tasklist_info = True)
     if old_access_token != credentials.access_token:
       atdb.updateUserAccessToken(user_id,credentials.access_token)
+    advservice_url = os.environ.get('ADVSERVICE_URL')
+    if advservice_url is not None:
+      for task in tasks:
+        try:
+          requests.post(advservice_url+"/users/"+user_id+"/google/tasks/title",
+                        json = { "title": task["title"]})
+        except requests.exceptions.RequestException:
+          pass
+      tasklists = task_provider.get_tasklists(include_id = False)
+      for tasklist in tasklists:
+        try:
+          requests.post(advservice_url+"/users/"+user_id+"/google/tasks/title",
+                        json = { "title": tasklist["title"]})
+        except requests.exceptions.RequestException:
+          pass
     tasks_separated = {
         "timed" : [x for x in tasks if x.get("due",None) is not None],
         "rest" : [x for x in tasks if x.get("due",None) is None]
