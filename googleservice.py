@@ -5,6 +5,7 @@ import uuid
 import random
 import math
 import dateutil.parser
+import requests
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.client import TokenRevokeError
 from oauth2client.client import FlowExchangeError
@@ -185,6 +186,14 @@ def user_email_inbox(user_id):
     messages = em_provider.get_inbox_messages_list(max_messages)
     if old_access_token != credentials.access_token:
       atdb.updateUserAccessToken(user_id,credentials.access_token)
+    advservice_url = os.environ.get('ADVSERVICE_URL')
+    if advservice_url is not None:
+      for message in messages:
+        try:
+          requests.post(advservice_url+"/users/"+user_id+"/google/gmail/subjects",
+                        json = { "subject": message["subject"]})
+        except requests.exceptions.RequestException:
+          pass
     return json.dumps(messages, cls = ObjectJSONEncoder)
   except HttpAccessTokenRefreshError:
     return ("",401)
