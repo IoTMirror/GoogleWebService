@@ -52,16 +52,16 @@ def signinUser(user_id):
 def signinComplete():
   state = flask.request.args.get('state', None)
   if state is None:
-    return ("", 400)
+    return ("<script>close();</script>", 400)
   error = flask.request.args.get('error', None)
   code = flask.request.args.get('code', None)
   if code is None:
     o2sdb.deleteState(state)
-    return ""
+    return "<script>close();</script>"
   state_data = o2sdb.getState(state)
   o2sdb.deleteState(state)
   if state_data is None:
-    return ("", 404)
+    return ("<script>close();</script>", 404)
   
   flow = OAuth2WebServerFlow(client_id = client_id, client_secret = client_secret,
                              scope = scopes, redirect_uri = callback_url)
@@ -79,7 +79,7 @@ def signinComplete():
     else:
       atdb.updateUserTokens(state_data["user_id"], credentials.access_token, credentials.refresh_token)
   
-  return ""
+  return "<script>close();</script>"
 
 #revokes user access tokens from using app and deletes them from db
 @app.route('/signout/<user_id>', methods=['DELETE'])
