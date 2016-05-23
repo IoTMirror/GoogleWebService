@@ -18,10 +18,13 @@ import psycopg2.extras
 from iotmirror_commons.oauth2_tokens import OAuth2StatesDatabase
 from iotmirror_commons.oauth2_tokens import AccessTokensDatabase
 from iotmirror_commons.json_commons import ObjectJSONEncoder
+from iotmirror_commons.flask_security import server_secret_key_required
+from iotmirror_commons.flask_security import authorizeServerBasicEnvKey
 from google_commons import GoogleCredentialsProvider
 from google_utils import TaskProvider
 from google_utils import EmailMessageProvider
 from google_utils import EventProvider
+
 
 app = flask.Flask(__name__)
 
@@ -83,6 +86,7 @@ def signinComplete():
 
 #revokes user access tokens from using app and deletes them from db
 @app.route('/signout/<user_id>', methods=['DELETE'])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def signout(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
@@ -99,17 +103,20 @@ def signout(user_id):
 
 #revokes user access tokens from using app and deletes them from db
 @app.route('/users/<user_id>/access_tokens', methods=['DELETE'])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def delete_user_access_tokens(user_id):
   return signout(user_id)
 
 #deletes user oauth2 states from db
 @app.route('/users/<user_id>/oauth2_states', methods=['DELETE'])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def delete_user_oauth2_states(user_id):
   o2sdb.deleteUserStates(user_id)
   return ""
 
 #returns info about user specified by user_id
 @app.route('/users/<user_id>', methods=['GET'])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def user_info(user_id):
   tokens = atdb.getUserTokens(user_id)
   if tokens is None:
@@ -137,6 +144,7 @@ def user_info(user_id):
 
 #returns tasks for user specified by user_id
 @app.route('/users/<user_id>/tasks', methods=['GET'])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def user_tasks(user_id):
   max_tasks = 10
   tokens = atdb.getUserTokens(user_id)
@@ -187,6 +195,7 @@ def user_tasks(user_id):
     raise
 
 @app.route('/users/<user_id>/emails/inbox', methods=["GET"])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def user_email_inbox(user_id):
   max_messages = 10
   tokens = atdb.getUserTokens(user_id)
@@ -218,6 +227,7 @@ def user_email_inbox(user_id):
     raise
 
 @app.route('/users/<user_id>/calendar/events', methods=["GET"])
+@server_secret_key_required(authorizeServerBasicEnvKey)
 def user_calendar(user_id):
   max_events = 10
   tokens = atdb.getUserTokens(user_id)
