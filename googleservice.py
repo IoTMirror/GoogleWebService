@@ -164,14 +164,14 @@ def user_tasks(user_id):
       for task in tasks:
         try:
           requests.post(advservice_url+"/users/"+user_id+"/google/tasks/title",
-                        json = { "title": task["title"]})
+                        json = { "title": task["title"]}, headers={"Authorization": "Basic "+os.environ.get("SERVERS_SECRET_KEY","")})
         except requests.exceptions.RequestException:
           pass
       tasklists = task_provider.get_tasklists(include_id = False)
       for tasklist in tasklists:
         try:
           requests.post(advservice_url+"/users/"+user_id+"/google/tasks/title",
-                        json = { "title": tasklist["title"]})
+                        json = { "title": tasklist["title"]}, headers={"Authorization": "Basic "+os.environ.get("SERVERS_SECRET_KEY","")})
         except requests.exceptions.RequestException:
           pass
     tasks_separated = {
@@ -215,7 +215,7 @@ def user_email_inbox(user_id):
       for message in messages:
         try:
           requests.post(advservice_url+"/users/"+user_id+"/google/gmail/subjects",
-                        json = { "subject": message["subject"]})
+                        json = { "subject": message["subject"]}, headers={"Authorization": "Basic "+os.environ.get("SERVERS_SECRET_KEY","")})
         except requests.exceptions.RequestException:
           pass
     return json.dumps(messages, cls = ObjectJSONEncoder)
